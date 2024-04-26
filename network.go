@@ -3,6 +3,7 @@ package goupnp
 import (
 	"bufio"
 	"bytes"
+	"fmt"
 	"io"
 	"net"
 	"os/exec"
@@ -48,6 +49,8 @@ func localIPv4MCastAddrs() ([]string, error) {
 	ifaces, err := net.Interfaces()
 	if err != nil {
 		if addrs, err := localIPv4MCastAddrsWithIfconfig(); err == nil {
+			return addrs, nil
+		} else if addrs, err := localIPv4MCastAddrsLastResort(); err == nil {
 			return addrs, nil
 		}
 		return nil, ctxError(err, "requesting host interfaces")
@@ -120,4 +123,27 @@ func localIPv4MCastAddrsWithIfconfig() ([]string, error) {
 	}
 
 	return addrs, nil
+}
+
+func localIPv4MCastAddrsLastResort() ([]string, error) {
+	ip, err := getLocalIp()
+	if err != nil {
+		return nil, err
+	}
+	return []string{ip}, nil
+}
+
+func getLocalIp() (string, error) {
+	conn, err := net.Dial("udp", "8.8.8.8:80")
+	if err != nil {
+		return "", err
+	}
+	defer conn.Close()
+
+	localAddr, ok := conn.LocalAddr().(*net.UDPAddr)
+	if !ok {
+		return "", fmt.Errorf("invalid local addr: %+v", conn.LocalAddr())
+	}
+
+	return localAddr.IP.String(), nil
 }
